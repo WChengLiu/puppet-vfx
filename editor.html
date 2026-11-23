@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>puppet-vfx · 擺零件</title>
+    <link rel="icon" href="data:," />
+    <script type="module" crossorigin src="/puppet-vfx/assets/editor-DDS3gCke.js"></script>
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/CanvasPool-CvhLfrak.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/Filter-6CQJiPbN.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/canvasUtils-DvJBlGrX.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/Cache-BNS9ZNya.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/getPo2TextureFromSource-BSuWOAro.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/GCManagedHash-QnpifyIu.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/RenderTargetSystem-CJDqdm03.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/getTextureBatchBindGroup-BmBjbjg6.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/GraphicsContext-CG3Y8iLA.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/CanvasRenderer-D_KJ7OOp.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/BitmapFont-BR6VY8lK.js">
+    <link rel="modulepreload" crossorigin href="/puppet-vfx/assets/puppetSkin-BH2d628B.js">
+    <link rel="stylesheet" crossorigin href="/puppet-vfx/assets/editor-Bgim89UI.css">
+  </head>
+  <body>
+    <div id="ed-stage"></div>
+    <aside id="ed-panel">
+      <h2>擺零件</h2>
+      <p class="hint">拖畫面上的<b>黃點</b>移動零件；滑鼠停在頭或劍上滾滾輪＝縮放，按住 Shift 滾＝轉。右邊滑桿可以微調。改完自動存檔，主畫面（另一個分頁）會即時套用。</p>
+      <div class="row">
+        <button id="pose-prev">◀</button><span id="pose-name"></span><button id="pose-next">▶</button>
+      </div>
+      <div class="row">
+        <button id="head-next">換頭</button><span id="head-name"></span>
+      </div>
+      <div class="row">
+        <button id="outfit-next">換衣服</button><span id="outfit-name"></span>
+      </div>
+      <div class="row">
+        <button id="try-slash">試揮劍</button><button id="try-strike">試推掌</button>
+        <label><input type="checkbox" id="show-hand" checked /> 顯示手骨架</label>
+      </div>
+      <div id="ed-sliders"></div>
+      <div class="row">
+        <button id="reset-head">這顆頭恢復預設</button><button id="reset-all">全部恢復預設</button>
+      </div>
+      <div class="row"><button id="copy">複製設定給 Claude</button><span id="saved"></span></div>
+      <textarea id="dump" readonly rows="4"></textarea>
+    </aside>
+  </body>
+</html>
