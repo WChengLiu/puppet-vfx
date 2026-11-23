@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>puppet-vfx · M1.3 戲偶出招</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="hud" hidden>
+      <div>畫面 FPS <b id="fps-render">–</b>　偵測 FPS <b id="fps-detect">–</b>　推論 <b id="infer-ms">–</b> ms　<b id="delegate">–</b></div>
+      <div>狀態 <b id="fsm-state">–</b></div>
+      <div id="hand-info"></div>
+      <div class="log-title">最近招式</div>
+      <ol id="event-log"></ol>
+    </div>
+    <div id="rec-bar" hidden>
+      <button id="rec-btn">● 錄影（R）</button>
+      <span id="rec-time"></span>
+      <a id="rec-dl" hidden></a>
+      <button id="skin-btn">戲偶：開（P）</button>
+      <button id="head-btn">換頭（H）</button>
+      <button id="outfit-btn">衣服（C）</button>
+      <button id="edit-btn">擺零件 ↗</button>
+      <button id="grab-btn">抓姿勢（F）</button>
+      <button id="skel-btn">骨架：開（S）</button>
+      <button id="sound-btn">音效：開</button>
+    </div>
+    <div id="guide" hidden></div>
+    <div id="tune" class="collapsed" hidden>
+      <button id="tune-toggle">⚙ 調門檻</button>
+      <div class="tune-body">
+        <div id="tune-list"></div>
+        <div class="tune-actions"><button id="tune-reset">恢復預設</button><button id="tune-copy">複製數值</button></div>
+        <code id="tune-dump"></code>
+      </div>
+    </div>
+    <div id="label-bar" hidden>
+      <button id="guide-btn">▶ 引導錄製（約 1.7 分鐘）</button>
+      <span class="label-title">我正在做：</span>
+      <button id="mark-btn">X 判錯了！</button>
+      <span id="log-status"></span>
+    </div>
+    <div id="start-panel">
+      <h1>puppet-vfx</h1>
+      <p>一手擺戲偶，一手推掌／劍指斬；可錄影下載</p>
+      <button id="start-btn">點我開始（開相機）</button>
+      <p id="status" class="status"></p>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

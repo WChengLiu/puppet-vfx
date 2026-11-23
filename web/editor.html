@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>puppet-vfx · 擺零件</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/editor.css" />
+  </head>
+  <body>
+    <div id="ed-stage"></div>
+    <aside id="ed-panel">
+      <h2>擺零件</h2>
+      <p class="hint">拖畫面上的<b>黃點</b>移動零件；滑鼠停在頭或劍上滾滾輪＝縮放，按住 Shift 滾＝轉。右邊滑桿可以微調。改完自動存檔，主畫面（另一個分頁）會即時套用。</p>
+      <div class="row">
+        <button id="pose-prev">◀</button><span id="pose-name"></span><button id="pose-next">▶</button>
+      </div>
+      <div class="row">
+        <button id="head-next">換頭</button><span id="head-name"></span>
+      </div>
+      <div class="row">
+        <button id="outfit-next">換衣服</button><span id="outfit-name"></span>
+      </div>
+      <div class="row">
+        <button id="try-slash">試揮劍</button><button id="try-strike">試推掌</button>
+        <label><input type="checkbox" id="show-hand" checked /> 顯示手骨架</label>
+      </div>
+      <div id="ed-sliders"></div>
+      <div class="row">
+        <button id="reset-head">這顆頭恢復預設</button><button id="reset-all">全部恢復預設</button>
+      </div>
+      <div class="row"><button id="copy">複製設定給 Claude</button><span id="saved"></span></div>
+      <textarea id="dump" readonly rows="4"></textarea>
+    </aside>
+    <script type="module" src="/src/editor.js"></script>
+  </body>
+</html>

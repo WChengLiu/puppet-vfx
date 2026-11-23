@@ -1,0 +1,24 @@
+html, body { margin: 0; height: 100%; background: #1b1d22; color: #eee; overflow: hidden;
+  font-family: -apple-system, "PingFang TC", "Noto Sans TC", sans-serif; font-size: 13px; }
+#ed-stage { position: fixed; top: 0; bottom: 0; left: 0; right: 340px; }
+#ed-stage canvas { display: block; touch-action: none; }
+#ed-panel { position: fixed; top: 0; bottom: 0; right: 0; width: 340px; box-sizing: border-box; padding: 10px 14px;
+  overflow: auto; background: #111317; border-left: 1px solid #333; }
+#ed-panel h2 { margin: 0 0 4px; font-size: 18px; }
+#ed-panel h3 { margin: 12px 0 2px; font-size: 13px; color: #ffd54a; }
+.hint { color: #aaa; line-height: 1.5; margin: 0 0 8px; }
+.hint b { color: #ffd54a; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+button { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+button:hover { background: #444; }
+.sl { display: grid; grid-template-columns: 7.5em 1fr 3.5em; align-items: center; gap: 6px; margin: 3px 0; }
+.sl input[type=range] { width: 100%; }
+.sl output { text-align: right; font-variant-numeric: tabular-nums; color: #ccc; }
+.sl output.changed { color: #ffd54a; }
+.ck { display: inline-flex; gap: 4px; align-items: center; margin-right: 10px; }
+#saved { color: #7cff8a; }
+#dump { width: 100%; box-sizing: border-box; background: #000; color: #9c9; border: 1px solid #333; font-size: 11px; }
+@media (max-width: 700px) {
+  #ed-stage { right: 0; bottom: 45vh; }
+  #ed-panel { top: 55vh; width: 100%; border-left: 0; border-top: 1px solid #333; }
+}
