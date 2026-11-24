@@ -72,12 +72,16 @@ export class VfxDirector {
     this.split = { t: -1, dur: 0.2, amp: 0 };
     this.wave = { t: -1, dur: 0.7, o: null };
     this.shake = { amp: 0, dur: 1, t: -1 };
+    this.chargeState = null;
   }
+
+  setCharge(state) { this.chargeState = state?.charge > 0 ? state : null; }
 
   // ev：FSM 事件；skillP：技能手 21 點（影片像素，推掌掌印用，可省略）
   trigger(ev, skillP) {
     if (!ev?.origin) return;
-    const palm = Math.max(20, ev.palm || 80);
+    const boost = ev.charged ? 1 + 0.5 * ev.charged : 1;
+    const palm = Math.max(20, ev.palm || 80) * boost;
     const o = { ...ev.origin };
     if (ev.type === 'slash') {
       let dx = ev.dir?.x ?? 0, dy = ev.dir?.y ?? 1;
@@ -96,10 +100,33 @@ export class VfxDirector {
         const along = rand(0.3, 1) * SLASH.len * palm;
         this.puff(o.x + dx * along, o.y + dy * along, palm, 0x9ab8d0, 0.16, rand(0.8, 1.3));
       }
-      this.kick(7, 0.18);
-      this.doFlash(0.25, 0.08);
-      this.doSplit(4, 0.12);
-      this.title.show('劍指斬', PAL.slash);
+      this.kick(ev.charged ? 12 : 7, ev.charged ? 0.28 : 0.18);
+      this.doFlash(ev.charged ? 0.45 : 0.25, ev.charged ? 0.12 : 0.08);
+      this.doSplit(ev.charged ? 7 : 4, 0.14);
+      if (ev.charged) {
+        // 萬劍齊發：14 把發光飛劍在身側扇形列陣後齊射飛出
+        const baseA = Math.atan2(dy, dx), count = 14;
+        for (let i = 0; i < count; i++) {
+          const k = count > 1 ? i / (count - 1) - 0.5 : 0;
+          const spread = k * 0.95 + rand(-0.04, 0.04);
+          const ang = baseA + spread;
+          const px = -Math.sin(baseA), py = Math.cos(baseA);
+          const lat = k * 2.2 * palm + rand(-0.2, 0.2) * palm;
+          const back = -Math.abs(k) * 0.9 * palm + rand(-0.2, 0.2) * palm;
+          this.effects.push({
+            type: 'sword_volley', t0: this.clock, delay: Math.abs(k) * 0.08 + rand(0, 0.04),
+            life: 0.55 + rand(0, 0.12), palm,
+            sx: o.x + px * lat + Math.cos(baseA) * back,
+            sy: o.y + py * lat + Math.sin(baseA) * back,
+            vx: Math.cos(ang) * rand(22, 30) * palm,
+            vy: Math.sin(ang) * rand(22, 30) * palm,
+            ang, len: rand(0.95, 1.35) * palm,
+          });
+        }
+        this.title.show('萬劍齊發', PAL.slash);
+      } else {
+        this.title.show('劍指斬', PAL.slash);
+      }
     } else {
       this.hitStop(STRIKE.stop);
       const shape = skillP ? palmShape(skillP) : null;
@@ -120,7 +147,7 @@ export class VfxDirector {
       // 出手只小震、小閃；重震、閃白、相機衝擊波都放在命中點（impact），才不像往鏡頭打
       this.kick(8, 0.2, STRIKE.stop);
       this.doFlash(0.25, 0.08, STRIKE.stop);
-      this.title.show('推掌', PAL.strike);
+      this.title.show(ev.charged ? '蓄力・推掌' : '推掌', PAL.strike);
     }
   }
 
@@ -167,7 +194,7 @@ export class VfxDirector {
     return { vx: 0, vy: 0, drag: 0, gravity: 0, grow: 1, alpha: 1, age: 0, ...p, s };
   }
 
-  get active() { return this.effects.length > 0 || this.parts.length > 0 || this.freezeLeft > 0 || this.camFreezeLeft > 0; }
+  get active() { return this.effects.length > 0 || this.parts.length > 0 || this.freezeLeft > 0 || this.camFreezeLeft > 0 || !!this.chargeState; }
 
   // 每個畫面幀呼叫；dt：秒；screenW/H：螢幕大小
   update(dt, screenW, screenH) {
@@ -182,9 +209,11 @@ export class VfxDirector {
 
     const g = this.g;
     g.clear();
+    if (this.chargeState) drawCharge(g, this.chargeState, this.real);
     this.effects = this.effects.filter((e) => {
       const age = this.clock - e.t0;
       if (e.type === 'slash') { drawSlash(g, e, age); return age < SLASH.life; }
+      if (e.type === 'sword_volley') { drawSwordVolley(g, e, age); return age < e.life; }
       if (e.type === 'strike') { drawStrike(g, e, age); return age < STRIKE.life; }
       if (e.type === 'ring') { drawRing(g, e, age); return age < 0.4; }
       if (e.type === 'burst' && age > 0) { this.burst(e); return false; }
@@ -428,6 +457,108 @@ function drawRing(g, e, age) {
 }
 
 // 招式名：直排楷書大字，先「砸」進來（放大縮回＋墨色筆刷底由上往下刷出），停一下再往上散掉
+// 畫單把發光飛劍（劍氣環繞＋萬劍齊發共用）
+function drawSwordShape(g, x, y, ang, len, col, alpha) {
+  const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx;
+  const tipX = x + dx * len * 0.65, tipY = y + dy * len * 0.65;
+  const hiltX = x - dx * len * 0.35, hiltY = y - dy * len * 0.35;
+  const guardX = x - dx * len * 0.15, guardY = y - dy * len * 0.15;
+  // 外暈劍身
+  g.moveTo(tipX, tipY).lineTo(guardX + nx * len * 0.09, guardY + ny * len * 0.09)
+    .lineTo(hiltX, hiltY).lineTo(guardX - nx * len * 0.09, guardY - ny * len * 0.09).closePath()
+    .fill({ color: col, alpha: alpha * 0.45 });
+  // 劍身亮白核心＋護手橫格
+  g.moveTo(tipX, tipY).lineTo(hiltX, hiltY).stroke({ width: len * 0.055, color: 0xffffff, alpha: alpha * 0.95 });
+  g.moveTo(guardX - nx * len * 0.16, guardY - ny * len * 0.16)
+    .lineTo(guardX + nx * len * 0.16, guardY + ny * len * 0.16)
+    .stroke({ width: len * 0.045, color: col, alpha });
+}
+
+// 萬劍齊發單把飛劍更新與拖尾
+function drawSwordVolley(g, e, age) {
+  const fly = Math.max(0, age - e.delay);
+  const k = clamp01(age / e.life);
+  const alpha = age < e.delay ? clamp01(age / Math.max(0.02, e.delay)) : clamp01(1 - (k - 0.5) / 0.5);
+  const x = e.sx + e.vx * fly, y = e.sy + e.vy * fly;
+  if (fly > 0) {
+    const tail = Math.min(fly, 0.12);
+    g.moveTo(x, y).lineTo(x - e.vx * tail, y - e.vy * tail)
+      .stroke({ width: e.palm * 0.11, color: PAL.slash.glow, alpha: alpha * 0.55 });
+    g.moveTo(x, y).lineTo(x - e.vx * tail * 0.7, y - e.vy * tail * 0.7)
+      .stroke({ width: e.palm * 0.04, color: 0xffffff, alpha: alpha * 0.85 });
+  }
+  drawSwordShape(g, x, y, e.ang, e.len, PAL.slash.glow, alpha);
+}
+
+// 蓄力特效：腳底八卦法陣光環＋戲偶雙色旋轉靈氣；切劍指＝6把飛劍環繞；切張掌＝掌心多層靈氣球
+function drawCharge(g, st, t) {
+  const { mode, charge, body, foot, palmPos, palm } = st;
+  const pulse = 1 + 0.05 * Math.sin(t * 9);
+  const rx = (0.85 + 0.4 * charge) * palm * pulse, ry = rx * 0.3;
+  const ringCol = mode === 'sword' ? PAL.slash.glow : mode === 'palm' ? PAL.strike.glow : 0x67e8f9;
+  const ringAlpha = (0.4 + 0.45 * charge) * (mode === 'fist' ? 1 : 0.7);
+
+  // 腳底聚氣法陣光環（雙層同心橢圓＋雙重旋轉四邊形八角星＋節點）
+  g.ellipse(foot.x, foot.y, rx, ry).stroke({ width: 0.045 * palm, color: ringCol, alpha: ringAlpha });
+  g.ellipse(foot.x, foot.y, rx * 0.68, ry * 0.68).stroke({ width: 0.025 * palm, color: 0xffffff, alpha: ringAlpha * 0.9 });
+  for (let sq = 0; sq < 2; sq++) {
+    const rot = t * (sq ? -1.8 : 1.8) + (sq * Math.PI) / 4;
+    for (let i = 0; i < 4; i++) {
+      const a0 = rot + (i * Math.PI) / 2, a1 = a0 + Math.PI / 2;
+      g.moveTo(foot.x + Math.cos(a0) * rx * 0.92, foot.y + Math.sin(a0) * ry * 0.92)
+        .lineTo(foot.x + Math.cos(a1) * rx * 0.92, foot.y + Math.sin(a1) * ry * 0.92)
+        .stroke({ width: 0.022 * palm, color: ringCol, alpha: ringAlpha * 0.75 });
+    }
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = t * 2.6 + (i * Math.PI) / 4;
+    g.circle(foot.x + Math.cos(a) * rx, foot.y + Math.sin(a) * ry, 0.045 * palm).fill({ color: 0xffffff, alpha: ringAlpha });
+  }
+
+  if (mode === 'fist') {
+    // 戲偶周身雙色螺旋靈氣（冰藍＋金白交織上升）
+    for (let i = 0; i < 6; i++) {
+      const baseA = t * 4.8 + (i * Math.PI) / 3;
+      const col = i % 2 === 0 ? 0x67e8f9 : 0xfde68a;
+      for (let s = 0; s < 12; s++) {
+        const k0 = s / 12, k1 = (s + 1) / 12;
+        const a0 = baseA + k0 * 2.6, a1 = baseA + k1 * 2.6;
+        const r0 = (1.05 - 0.42 * k0) * palm, r1 = (1.05 - 0.42 * k1) * palm;
+        const y0 = foot.y - k0 * 2.1 * palm, y1 = foot.y - k1 * 2.1 * palm;
+        const al = Math.sin(Math.PI * k0) * (0.42 + 0.5 * charge);
+        g.moveTo(body.x + Math.cos(a0) * r0, y0 + Math.sin(a0) * r0 * 0.28)
+          .lineTo(body.x + Math.cos(a1) * r1, y1 + Math.sin(a1) * r1 * 0.28)
+          .stroke({ width: 0.055 * palm, color: col, alpha: al });
+      }
+    }
+  } else if (mode === 'sword') {
+    // 劍氣蓄力：6 把發光飛劍繞著戲偶雙層軌道公轉
+    const count = 6;
+    for (let i = 0; i < count; i++) {
+      const layer = i % 2;
+      const a = t * (layer ? -4.2 : 4.8) + (i * Math.PI * 2) / count;
+      const rxO = (1.15 + 0.25 * layer) * palm, ryO = (0.42 + 0.12 * layer) * palm;
+      const cx = body.x + Math.cos(a) * rxO;
+      const cy = body.y - 0.15 * layer * palm + Math.sin(a) * ryO;
+      const ang = Math.atan2(Math.cos(a) * ryO, -Math.sin(a) * rxO);
+      drawSwordShape(g, cx, cy, ang, 0.72 * palm, PAL.slash.glow, 0.65 + 0.35 * charge);
+    }
+  } else if (mode === 'palm') {
+    // 掌氣蓄力：偶手掌心帶著多層靈氣光球＋三傾角旋轉軌道環
+    const p = palmPos ?? body;
+    const r = (0.3 + 0.22 * charge) * palm * pulse;
+    g.circle(p.x, p.y, r * 1.85).fill({ color: PAL.strike.accent, alpha: 0.18 + 0.16 * charge });
+    g.circle(p.x, p.y, r * 1.35).fill({ color: PAL.strike.glow, alpha: 0.3 + 0.25 * charge });
+    g.circle(p.x, p.y, r * 0.85).fill({ color: PAL.strike.core, alpha: 0.75 + 0.2 * charge });
+    g.circle(p.x, p.y, r * 0.45).fill({ color: 0xffffff, alpha: 0.98 });
+    for (let i = 0; i < 3; i++) {
+      const a = t * (5.5 + i) + (i * Math.PI * 2) / 3;
+      g.ellipse(p.x + Math.cos(a) * r * 0.14, p.y + Math.sin(a) * r * 0.14, r * 1.45, r * 0.42)
+        .stroke({ width: 0.03 * palm, color: i === 0 ? 0xffffff : PAL.strike.glow, alpha: 0.8 });
+    }
+  }
+}
+
 export class MoveTitle {
   constructor() {
     this.view = new Container();

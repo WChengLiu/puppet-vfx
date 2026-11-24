@@ -214,3 +214,44 @@ test('戲偶鎖定：戲偶手離開後，遠處冒出一隻手（沒擺戲偶�
   const out = run(30, (i) => (i < 12 ? [puppetL()] : i < 15 ? [] : [{ key: 'Left', P: synthHand({ x: 1000, pose: 'fist' }) }]));
   assert.ok(out.slice(15).every((o) => o.state === STATE.NO_PUPPET));
 });
+
+test('蓄力：握拳定住進入蓄力，切劍指轉成劍氣環繞，揮劍指斬帶出 charged 並消耗蓄力', () => {
+  const out = run(40, (i) => [
+    puppetL(),
+    i < 22 ? { key: 'Right', P: synthHand({ x: 800, y: 400, pose: 'fist' }) }
+      : i < 28 ? { key: 'Right', P: synthHand({ x: 800, y: 400, pose: 'sword' }) }
+      : { key: 'Right', P: synthHand({ x: 800 + (i - 27) * 90, y: 400, pose: 'sword' }) },
+  ]);
+  assert.ok(out[20].charge > 0 && out[20].chargeMode === 'fist', `握拳應蓄力中，實際 ${JSON.stringify(out[20])}`);
+  assert.ok(out[25].charge > 0 && out[25].chargeMode === 'sword', `切劍指應轉為 sword 模式，實際 ${JSON.stringify(out[25])}`);
+  const ev = eventsOf(out);
+  assert.equal(ev.length, 1);
+  assert.equal(ev[0].type, 'slash');
+  assert.ok(ev[0].charged > 0, '蓄力後出劍指斬應帶有 charged');
+  assert.equal(out.at(-1).charge, 0, '出招後應消耗蓄力');
+});
+
+test('蓄力：握拳定住後開掌轉成掌氣蓄力，往前推掌帶出 charged', () => {
+  const out = run(42, (i) => [
+    puppetL(),
+    i < 22 ? { key: 'Right', P: synthHand({ x: 800, y: 400, pose: 'fist' }) }
+      : i < 31 ? { key: 'Right', P: synthHand({ x: 800, y: 400, size: 100, pose: 'open' }) }
+      : { key: 'Right', P: synthHand({ x: 800, y: 400, size: 100 + (i - 30) * 14, pose: 'open' }) },
+  ]);
+  assert.ok(out[26].charge > 0 && out[26].chargeMode === 'palm', `開掌應轉為 palm 模式，實際 ${JSON.stringify(out[26])}`);
+  const ev = eventsOf(out);
+  assert.equal(ev.length, 1);
+  assert.equal(ev[0].type, 'strike');
+  assert.ok(ev[0].charged > 0, '蓄力後推掌應帶有 charged');
+});
+
+test('特徵：斜指鏡頭或背向斜傾的劍指（2D 縮短但 3D 伸直）仍可認成劍指，握拳不會誤認', () => {
+  const P = synthHand({ pose: 'sword' });
+  // 模擬斜傾：食中兩指 2D 壓縮到比 PIP 短，但 Z 軸斜向伸直（towardCam < 0.6）
+  P[6].y = P[5].y - 10; P[6].z = 35;
+  P[8].y = P[5].y - 20; P[8].z = 85;
+  P[10].y = P[9].y - 10; P[10].z = 35;
+  P[12].y = P[9].y - 20; P[12].z = 85;
+  assert.equal(handFeatures(P, DEFAULTS).sword, true);
+  assert.equal(handFeatures(synthHand({ pose: 'fist' }), DEFAULTS).sword, false);
+});

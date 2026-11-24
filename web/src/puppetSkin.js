@@ -396,9 +396,14 @@ export class PuppetSkin {
       }
     }
 
-    // ── 頭（食指）──
+    // ── 頭（食指，含低頭俯首）──
     const HL = this.headLayout();
-    const up0 = norm(sub(P[8], P[6]));
+    const upPalm = mul(down, -1);
+    const rawUp = sub(P[8], P[6]);
+    const rawUpN = len(rawUp) > 0.12 * palm ? norm(rawUp) : upPalm;
+    const up0 = (rawUpN.x * upPalm.x + rawUpN.y * upPalm.y) < -0.25 ? upPalm : rawUpN; // 深低頭時防頭上下翻反
+    const idxProj = ((P[8].x - P[5].x) * upPalm.x + (P[8].y - P[5].y) * upPalm.y) / palm;
+    const bow = clamp01((0.65 - idxProj) / 0.65); // 食指往前／往下彎＝低頭程度（0~1）
     const up = { x: up0.x * Math.cos(rad(HL.rot)) - up0.y * Math.sin(rad(HL.rot)), y: up0.x * Math.sin(rad(HL.rot)) + up0.y * Math.cos(rad(HL.rot)) };
     const rt = perp(up);
     const R = 0.55 * palm * HL.scale; // 布袋戲偶頭比例大
@@ -429,10 +434,10 @@ export class PuppetSkin {
       hs.anchor.set(0.5, HEAD_IMG.anchorY);
       hs.visible = true;
       const k = (HEAD_IMG.heightOverR * R) / hs.texture.height;
-      hs.scale.set(k * squash * flip, k);
-      const c = at(0, 0.1);
+      hs.scale.set(k * squash * flip, k * (1 - 0.2 * bow));
+      const c = add(at(0, 0.1 + 0.35 * bow), mul(facing, 0.18 * bow * R));
       hs.position.set(c.x, c.y);
-      hs.rotation = Math.atan2(up.y, up.x) + Math.PI / 2;
+      hs.rotation = Math.atan2(up.y, up.x) + Math.PI / 2 + (flip > 0 ? -1 : 1) * 0.25 * bow;
     } else {
       const polyAt = (arr, color, alpha = 1) => g.poly(flat(arr.map(([x, y]) => at(x, y)))).fill({ color, alpha });
       for (const s of [-1, 1]) polyAt([[s * 0.7, -0.3], [s * 0.95, 0.4], [s * 0.85, 1.6], [s * 0.6, 1.7], [s * 0.6, 0.3]], COL.hair); // 兩側長髮

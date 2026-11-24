@@ -147,6 +147,12 @@ async function run(video, landmarker, delegate, sfx) {
     window.__puppetPose = puppetHand ? { lm: puppetHand.lm.map((p) => [p.x, p.y, p.z]), w: vw, h: vh } : null; // F 鍵抓給擺零件視窗
     if (skin.view.visible) skin.draw(puppetHand, performance.now() / 1000);
     if (skeleton.view.visible) skeleton.draw(hands, 1 / Math.abs(world.scale.y), out.puppetKey);
+    vfx.setCharge(puppetHand && out.charge > 0 ? {
+      mode: out.chargeMode, charge: out.charge, palm: puppetHand.f.palm,
+      body: puppetHand.f.anchors.body,
+      foot: { x: puppetHand.f.anchors.body.x, y: puppetHand.f.anchors.body.y + puppetHand.f.palm * 1.55 },
+      palmPos: (skin.view.visible && skin.palmTip()) || puppetHand.f.anchors.armOther,
+    } : null);
     vfx.update(Math.min(app.ticker.deltaMS / 1000, 0.05), app.screen.width, app.screen.height);
     const sh = vfx.shakeOffset();
     world.position.set(base.x + sh.x, base.y + sh.y);
@@ -189,11 +195,63 @@ function mountLabelBar(log) {
     setTimeout(() => m.classList.remove('flash'), 300);
   };
   $('mark-btn').addEventListener('click', mark);
+
+  // ── 錄製新招（開始／結束按鈕 + G 鍵 + 語音「開始／結束」）──
+  const recBtn = $('custom-rec-btn'), nameInput = $('custom-name'), voiceBtn = $('voice-btn');
+  let customIdx = 1, customActive = null;
+  const toggleCustom = (force) => {
+    const start = force ?? !customActive;
+    if (start && !customActive) {
+      const label = nameInput.value.trim() || `custom-${customIdx}`;
+      customActive = label;
+      log.setLabel(`custom:${label}`);
+      log.mark(`custom-start:${label}`);
+      recBtn.classList.add('rec');
+      recBtn.textContent = `■ 結束「${label}」（G）`;
+    } else if (!start && customActive) {
+      log.mark(`custom-end:${customActive}`);
+      log.setLabel('none');
+      customActive = null;
+      customIdx++;
+      nameInput.value = '';
+      recBtn.classList.remove('rec');
+      recBtn.textContent = '● 錄新招（G）';
+    }
+  };
+  recBtn.addEventListener('click', () => toggleCustom());
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recog = null, voiceOn = false;
+  if (!SR) { voiceBtn.disabled = true; voiceBtn.title = '此瀏覽器不支援語音辨識'; }
+  voiceBtn.addEventListener('click', () => {
+    if (!SR) return;
+    voiceOn = !voiceOn;
+    voiceBtn.classList.toggle('on', voiceOn);
+    voiceBtn.textContent = `🎙 語音：${voiceOn ? '開' : '關'}`;
+    if (voiceOn) {
+      recog = new SR();
+      recog.lang = 'zh-TW';
+      recog.continuous = true;
+      recog.interimResults = true;
+      recog.onresult = (ev) => {
+        const text = ev.results[ev.results.length - 1][0].transcript;
+        if (text.includes('開始') && !customActive) toggleCustom(true);
+        else if ((text.includes('結束') || text.includes('停止')) && customActive) toggleCustom(false);
+      };
+      recog.onend = () => { if (voiceOn) try { recog.start(); } catch {} };
+      try { recog.start(); } catch {}
+    } else if (recog) {
+      try { recog.stop(); } catch {}
+      recog = null;
+    }
+  });
+
   addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
     const hit = LABELS.find(([k]) => k === e.key);
     if (hit) select(hit[1]);
     else if (e.key === 'x' || e.key === 'X') mark();
+    else if (e.key === 'g' || e.key === 'G') toggleCustom();
   });
   select('none');
 }
@@ -311,7 +369,7 @@ function updateDebug(hands, out) {
   lastDebug = now;
   $('hand-info').innerHTML = hands.map(({ key, f, m }) => {
     const role = key === out.puppetKey ? '🎎戲偶' : key === out.skillKey ? '✋技能' : '';
-    const pose = f.puppet ? '<b class="on">戲偶手</b>' : f.sword ? '<b class="on">劍指</b>' : f.open ? '<b class="on">張掌</b>' : '其他';
+    const pose = f.puppet ? '<b class="on">戲偶手</b>' : f.sword ? '<b class="on">劍指</b>' : f.pointing ? '<b class="on">劍指(對鏡頭)</b>' : f.open ? '<b class="on">張掌</b>' : '其他';
     return `<div>${key} ${role}：${pose}｜食中 ${f.splitDeg.toFixed(0)}° 拇 ${f.thumbDeg.toFixed(0)}° 兩指距 ${f.tipGap.toFixed(2)}｜指尖 ${m.tipSpeed.toFixed(1)} 變大 ${m.growth.toFixed(2)}</div>`;
   }).join('') || '<div>（沒偵測到手）</div>';
 }

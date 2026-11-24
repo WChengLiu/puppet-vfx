@@ -21,12 +21,17 @@ export const DEFAULTS = {
   slashSpeed: 12, // 劍指斬：指尖速度（手掌長/秒）≥ 這個值
   slashPoseRatio: 0.25, // 劍指斬：最近 poseWindow 秒內劍指的比例 ≥ 這個值（揮手時一閃而過的劍指不算）
   slashSticky: true, // 劍指斬：劈下去那一刻手指轉向鏡頭（認不出劍指）也算，只要最近有穩定劍指（直劈用）
-  pointToward: 0.6, // 指向鏡頭的程度（0~1）≥ 這個值才算「劍指指向鏡頭」
+  pointToward: 0.48, // 指向鏡頭的程度（0~1）≥ 這個值才算「劍指指向鏡頭」
   slashCooldown: 0.5,
   // 直劈「跟丟」判定（老闆 11/23 引導錄製：往下劈太快畫面糊掉，手部模型整個跟丟 0.1～0.3 秒）
   chopAimRatio: 0.5, // 跟丟前 poseWindow 秒內劍指（含指向鏡頭）比例 ≥ 這個值
   chopSpeed: 3, // 跟丟前指尖往下速度（手掌長/秒）≥ 這個值
   chopReturn: 0.8, // 手往下劈到跟丟後，幾秒內「往上」的劍指斬不算（劈完把手舉回來）
+  // 蓄力（老闆 11/24 錄製）：技能手握拳定住 → 蓄力；切劍指＝劍氣環繞；切張掌＝掌心聚光球
+  chargeHold: 0.35, // 握拳定住幾秒開始蓄力
+  chargeRamp: 1.0, // 幾秒蓄滿（charge 0 -> 1）
+  chargeMaxMove: 2.0, // 握拳時手掌中心移動速度 ≤ 這個值才算定住
+  chargeKeepSec: 1.5, // 放開拳頭切到劍指／張掌後，蓄力保留幾秒
 };
 
 // 離位置 p 最近、且在 maxPalm 個手掌長內的手
@@ -66,6 +71,10 @@ export class GestureFSM {
     this.poseHist = new Map(); // key -> [{t, sword, aim, open}]
     this.lastSkill = null; // 上一幀技能手的狀態（直劈跟丟時用）
     this.lastChop = -Infinity;
+    this.fistSince = null;
+    this.charge = 0;
+    this.chargeUntil = -Infinity;
+    this.chargeMode = null;
   }
 
   // 最近 poseWindow 秒內，某手勢出現的比例
@@ -143,12 +152,31 @@ export class GestureFSM {
     }
 
     if (puppet && skill) {
+      // ── 蓄力狀態機：握拳定住 → 蓄力；切劍指＝劍氣環繞；切張掌＝掌氣光球 ──
+      if (skill.f.fist && skill.m.speed <= c.chargeMaxMove) {
+        if (this.fistSince === null) this.fistSince = t;
+        const held = t - this.fistSince - c.chargeHold;
+        if (held >= 0) {
+          this.charge = Math.min(1, 0.25 + 0.75 * (held / Math.max(0.1, c.chargeRamp)));
+          this.chargeUntil = t + c.chargeKeepSec;
+        }
+      } else {
+        this.fistSince = null;
+        if (t > this.chargeUntil) this.charge = 0;
+      }
+      if (this.charge > 0) {
+        this.chargeMode = skill.f.fist ? 'fist' : (skill.f.sword || skill.f.pointing) ? 'sword' : skill.f.open ? 'palm' : 'fist';
+      } else {
+        this.chargeMode = null;
+      }
+
       const a = puppet.f.anchors;
       // ── 推掌：技能手張掌往鏡頭推 → 從戲偶身體發出 ──
       if (t - this.lastStrike >= c.strikeCooldown && skill.f.open && skill.m.growth >= c.pushGrowth
         && skill.m.twist <= c.pushMaxSide && skill.m.speed <= c.pushMaxMove && this.poseRatio(skill.key, t, 'open') >= c.strikePoseRatio) {
-        events.push({ type: 'strike', hand: skill.key, t, origin: a.body, palm: puppet.f.palm, dir: facingDir(puppet, skill) });
+        events.push({ type: 'strike', hand: skill.key, t, origin: a.body, palm: puppet.f.palm, dir: facingDir(puppet, skill), charged: this.charge || undefined });
         this.lastStrike = t;
+        this.charge = 0; this.fistSince = null; this.chargeUntil = -Infinity; this.chargeMode = null;
       }
       // ── 劍指斬：技能手劍指快速劃過 → 從戲偶靠技能手那側的手臂發出，方向跟著劃的方向 ──
       // 直劈時最快那一刻手指正對鏡頭，模型認不出劍指（老闆 11/23 紀錄），所以看「最近有沒有穩定劍指」
@@ -161,12 +189,16 @@ export class GestureFSM {
         const dT = Math.hypot(a.armThumb.x - s.x, a.armThumb.y - s.y);
         const dO = Math.hypot(a.armOther.x - s.x, a.armOther.y - s.y);
         events.push({ type: 'slash', hand: skill.key, t, origin: dT < dO ? a.armThumb : a.armOther, palm: puppet.f.palm,
-          dir: { x: skill.m.tvx, y: skill.m.tvy } });
+          dir: { x: skill.m.tvx, y: skill.m.tvy }, charged: this.charge || undefined });
         this.lastSlash = t;
+        this.charge = 0; this.fistSince = null; this.chargeUntil = -Infinity; this.chargeMode = null;
       }
+    } else {
+      this.fistSince = null;
+      if (!puppet || t > this.chargeUntil) { this.charge = 0; this.chargeMode = null; }
     }
     this.lastSkill = puppet && skill ? { key: skill.key, t, tvx: skill.m.tvx, tvy: skill.m.tvy, center: { ...skill.f.center },
       aim: this.poseRatio(skill.key, t, 'aim') } : null;
-    return { state, puppetKey: this.puppetKey, skillKey: skill?.key ?? null, events };
+    return { state, puppetKey: this.puppetKey, skillKey: skill?.key ?? null, charge: this.charge, chargeMode: this.chargeMode, events };
   }
 }

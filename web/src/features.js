@@ -26,6 +26,7 @@ const avg = (ps) => ({
 });
 
 const sub3 = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: (a.z ?? 0) - (b.z ?? 0) });
+const cos3 = (u, v) => (u.x * v.x + u.y * v.y + u.z * v.z) / ((Math.hypot(u.x, u.y, u.z) * Math.hypot(v.x, v.y, v.z)) || 1);
 
 export function handFeatures(P, cfg) {
   const palm = d2(P[0], P[9]) || 1; // 手掌長：腕 → 中指根
@@ -34,13 +35,17 @@ export function handFeatures(P, cfg) {
   const [idx, mid, ring, pinky] = extended;
   const open = extended.every(Boolean);
   const tipGap = d2(P[8], P[12]) / palm; // 食指與中指指尖距離
-  const sword = idx && mid && !ring && !pinky && tipGap < cfg.swordGap;
-
   // ── 劍指指向鏡頭：模型會把正對鏡頭的手指誤認成彎的（老闆 11/23 紀錄），
   //    改看「食中兩指指尖併攏、指向鏡頭（z 方向為主）、無名小指沒伸直」 ──
   const toward = (a, b) => { const v = { x: P[b].x - P[a].x, y: P[b].y - P[a].y, z: P[b].z - P[a].z }; return -v.z / (Math.hypot(v.x, v.y, v.z) || 1); };
   const towardCam = Math.min(toward(5, 8), toward(9, 12));
-  const pointing = !ring && !pinky && tipGap < cfg.swordGap && towardCam >= cfg.pointToward;
+  // 劍指角度容錯：除了 2D 長度比，斜指鏡頭或微傾時改看 3D 關節伸直度（不與正對鏡頭 pointing 或握拳混淆）
+  const straight3 = (m, p, t) => cos3(sub3(P[p], P[m]), sub3(P[t], P[p])) > 0.45;
+  const curled3 = (m, p, t) => cos3(sub3(P[p], P[m]), sub3(P[t], P[p])) < 0.2;
+  const idxMidStraight = (idx && mid) || (towardCam < cfg.pointToward && straight3(5, 6, 8) && straight3(9, 10, 12));
+  const ringPinkyCurled = (!ring && !pinky) || (curled3(13, 14, 16) && curled3(17, 18, 20));
+  const sword = idxMidStraight && ringPinkyCurled && tipGap < cfg.swordGap;
+  const pointing = ringPinkyCurled && tipGap < cfg.swordGap && towardCam >= cfg.pointToward;
 
   // ── 戲偶手（老闆實際姿勢，2026-11-23 確認）：食指當頭，拇指與中指當兩臂，無名指和小指彎起來 ──
   const vIndex = vec(P[5], P[8]), vThumb = vec(P[2], P[4]), vMid = vec(P[9], P[12]);
@@ -63,5 +68,6 @@ export function handFeatures(P, cfg) {
   if (n.x * curl.x + n.y * curl.y + n.z * curl.z < 0) n = { x: -n.x, y: -n.y, z: -n.z };
   const nl = Math.hypot(n.x, n.y, n.z) || 1;
   const facing = { x: n.x / nl, y: n.y / nl, z: n.z / nl }; // z < 0：掌心朝鏡頭
-  return { palm, extended, open, sword, pointing, towardCam, tipGap, puppet, splitDeg, thumbDeg, center, tip, anchors, facing };
+  const fist = !idx && !mid && !ring && !pinky;
+  return { palm, extended, open, fist, sword, pointing, towardCam, tipGap, puppet, splitDeg, thumbDeg, center, tip, anchors, facing };
 }
