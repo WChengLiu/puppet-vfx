@@ -19,7 +19,11 @@ const angleDeg = (u, v) => {
   return (Math.acos(Math.max(-1, Math.min(1, c))) * 180) / Math.PI;
 };
 const cross = (u, v) => u.x * v.y - u.y * v.x;
-const avg = (ps) => ({ x: ps.reduce((s, p) => s + p.x, 0) / ps.length, y: ps.reduce((s, p) => s + p.y, 0) / ps.length });
+const avg = (ps) => ({
+  x: ps.reduce((s, p) => s + p.x, 0) / ps.length,
+  y: ps.reduce((s, p) => s + p.y, 0) / ps.length,
+  z: ps.reduce((s, p) => s + (p.z ?? 0), 0) / ps.length,
+});
 
 const sub3 = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: (a.z ?? 0) - (b.z ?? 0) });
 

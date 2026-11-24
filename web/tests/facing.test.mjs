@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FacingTracker } from '../src/facing.js';
+import { handFeatures } from '../src/features.js';
+import { DEFAULTS } from '../src/fsm.js';
+import { synthHand } from './synth.mjs';
 
 const F = (z) => { const x = Math.sqrt(Math.max(0, 1 - z * z)); return { x, y: 0, z }; };
 
@@ -28,4 +31,14 @@ test('慢慢轉過側面的真翻手馬上跟上', () => {
   let v;
   for (let i = 0; i <= 20; i++) { const a = Math.PI * (i / 20); v = tr.update(i / 30, { x: Math.sin(a), y: 0, z: -Math.cos(a) }); }
   assert.ok(v.z > 0.99, `轉完應是背面，z=${v.z}`);
+});
+
+test('掌心正對鏡頭、無名小指往鏡頭側彎曲時，輕微傾斜不會翻成背面', () => {
+  const P = synthHand({ pose: 'puppet' });
+  P[5].z = 5;   // 輕微往鏡頭後方傾斜，使法向量帶有一點 x/y 分量
+  P[17].z = -5;
+  P[16].z = -25; // 無名指與小指往掌心（鏡頭側 z < 0）彎曲
+  P[20].z = -25;
+  const f = handFeatures(P, DEFAULTS);
+  assert.ok(f.facing.z < -0.8, `應判為正面（z < -0.8），實際 z=${f.facing.z}`);
 });
